@@ -7,7 +7,9 @@
 
 ## Release Summary
 
-ZKAuth v1.0 Beta launches an Android-first zero-knowledge identity solution with Tier 1 passport NFC and Tier 3 biometric device proof. This release focuses on on-device proof generation, strong privacy guarantees, and live verification support.
+ZKAuth v1.0 Beta is an Android-first prototype with Tier 1 passport NFC and Tier 3 biometric device proof flows. It focuses on on-device proof generation and includes a session relay/dashboard.
+
+> **Important:** The backend does not implement server-side Plonky2 verification. Proof acceptance is disabled and fails closed; a running relay must not be treated as an identity verifier.
 
 ## What's Included in v1.0 Beta
 
@@ -15,7 +17,7 @@ ZKAuth v1.0 Beta launches an Android-first zero-knowledge identity solution with
 - Tier 3 Android device + biometric proof using KeyStore + BiometricPrompt
 - Rust-based ZK circuit engine with Plonky2
 - JNI bridge between Kotlin and Rust
-- Node.js relay on Railway for proof verification
+- Node.js session relay on Railway (server-side proof verification is not implemented)
 - Live demo deployment and dashboard
 
 ## Performance Highlights
@@ -51,7 +53,7 @@ ZKAuth v1.0 Beta launches an Android-first zero-knowledge identity solution with
 
 - Offline-first proof generation on device
 - Cross-device login via QR scan
-- Server-side trust enforcement for sensitive claims
+- Fail-closed backend responses while a server-side verifier is unavailable
 - Replay protection with domain-scoped Poseidon nullifiers
 - Zeroized secret handling via Rust memory safety
 - Anti-tamper controls: root/emulator detection, rate limiting, vault wipe
@@ -67,7 +69,7 @@ ZKAuth v1.0 Beta launches an Android-first zero-knowledge identity solution with
   - passport_security.rs - Tier 1 ICAO 9303 + SOD verification
   - proof_bench.rs - benchmark engine
 - Backend relay: Node.js + Express on Railway
-  - /zkauth/verify - proof verification
+  - /zkauth/verify - disabled until server-side proof verification is implemented
   - /api/poll-status - session polling
 - Dashboard: trust-level UI for MAXIMUM / BASIC proofs
 
@@ -112,6 +114,7 @@ ZKAuth v1.0 Beta launches an Android-first zero-knowledge identity solution with
 - iOS is not supported yet (Android only)
 - Railway free tier may show 5-10 second cold start on first request
 - Simulate scan button is visible in debug builds only
+- The Node.js relay does not yet perform server-side Plonky2 verification. `/zkauth/verify` fails closed with `503 VERIFIER_UNAVAILABLE`; the legacy `/api/upload-proof` endpoint is disabled. Do not treat backend responses as authenticated identity claims.
 
 ## Roadmap
 

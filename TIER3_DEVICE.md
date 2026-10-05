@@ -13,7 +13,7 @@ Tier 3 proves you are a **real human on a real device**—using only your phone'
 2. **Android KeyStore** *(Hardware-backed)* ➔ 
 3. **4-Leaf Plonky2 Merkle Tree Circuit** ➔ 
 4. **ZK Proof** *(Generated on-device)* ➔ 
-5. **Server Verification** *(Receives proof + nullifier only)*.
+5. **Verifier integration** *(not implemented on the backend; the relay currently rejects proof submissions)*.
 
 ---
 

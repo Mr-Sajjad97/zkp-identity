@@ -2,6 +2,8 @@
 
 > A military-grade, privacy-first mobile identity wallet leveraging Zero-Knowledge Proofs (ZK-STARKs) and Post-Quantum cryptographic primitives.
 
+> **Implementation status:** This is an academic prototype, not a production identity verifier. The Node.js backend does not currently implement server-side Plonky2 verification or a pinned verification key. The `/zkauth/verify` endpoint therefore returns `503 VERIFIER_UNAVAILABLE`, and the legacy `/api/upload-proof` endpoint returns `410`; neither endpoint accepts identity claims. Do not use this project to make authentication, KYC, age, or other trust decisions until an independently reviewed verifier and trust policy are implemented.
+
 ![Kotlin](https://img.shields.io/badge/Kotlin-1.9-blue.svg?logo=kotlin)
 ![Rust](https://img.shields.io/badge/Rust-1.75-orange.svg?logo=rust)
 ![Plonky2](https://img.shields.io/badge/ZKP-Plonky2-purple.svg)

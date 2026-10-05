@@ -210,70 +210,11 @@ app.post('/api/proving-notify', (req, res) => {
 });
 
 // ── ZKAUTH VERIFY ─────────────────────────────────────────────
-// [FIX 5] NEW endpoint — app POSTs ZKAuthPayload v2.0 here after proof generation
-//
-// App sends (buildZkAuthPayload in AuthActivity):
-// {
-//   version, domain, claim_type, challenge,
-//   nullifier, hw_binding, valid_until,
-//   compressed_proof, device_sig, timestamp,
-//   session_id (optional)
-// }
+// Do not treat client-supplied fields as proof of identity. This service does
+// not yet have a pinned Plonky2 verifier key or server-side proof verifier, so
+// accepting a non-empty compressed_proof here would falsely authenticate users.
 app.post('/zkauth/verify', (req, res) => {
-  const {
-    session_id,
-    nullifier,
-    compressed_proof,
-    claim_type,
-    domain,
-    challenge,
-    valid_until,
-    hw_binding,
-    device_sig,
-    version,
-    timestamp,
-    input_mode,   // "NFC_PASSPORT" | "SIMULATION" | "DEVICE_BIOMETRIC"
-    trust_level,  // "MAXIMUM" | "BASIC"
-    tier,
-  } = req.body;
-
-  // ── Determine final trust level ──────────────────────────
-  // NFC_PASSPORT = MAXIMUM (government verified)
-  // Everything else = BASIC
-  const finalTrust = (input_mode === 'NFC_PASSPORT') ? 'MAXIMUM' : 'BASIC';
-  const isMaximum  = finalTrust === 'MAXIMUM';
-
-  // ── Claim-based trust enforcement ─────────────────────────
-  // Some claims REQUIRE real passport — reject BASIC proof
-  const PASSPORT_REQUIRED_CLAIMS = ['is_adult', 'nationality'];
-  const claimNeedsPassport = PASSPORT_REQUIRED_CLAIMS.includes(claim_type);
-
-  if (claimNeedsPassport && !isMaximum) {
-    log('warn', `Trust mismatch — claim=${claim_type} needs MAXIMUM, got=${finalTrust} (${input_mode})`);
-
-    // Update session to rejected — website poll will detect and show UI
-    if (session_id) {
-      const s = sessions.get(session_id);
-      if (s) {
-        s.status     = STATE.REJECTED;
-        s.claimType  = claim_type;
-        s.required   = 'MAXIMUM';
-        s.provided   = finalTrust;
-        sessions.set(session_id, s);
-      }
-    }
-
-    return res.status(403).json({
-      error      : `Claim '${claim_type}' requires real passport verification`,
-      error_code : 'INSUFFICIENT_TRUST',
-      claim_type,
-      required   : 'MAXIMUM',
-      provided   : finalTrust,
-      hint       : 'Please scan your NFC passport to verify this claim',
-    });
-  }
-
-  // ── Basic validation ──────────────────────────────────────
+  const { compressed_proof, nullifier, challenge } = req.body || {};
   if (!compressed_proof) {
     return res.status(400).json({ error: 'Missing compressed_proof', error_code: 'MISSING_PROOF' });
   }
@@ -284,136 +225,23 @@ app.post('/zkauth/verify', (req, res) => {
     return res.status(400).json({ error: 'Missing challenge', error_code: 'MISSING_CHALLENGE' });
   }
 
-  // ── [FIX 6] Global nullifier replay check ─────────────────
-  if (usedNullifiers.has(nullifier)) {
-    log('warn', `Replay attack blocked — nullifier reused: ${nullifier.slice(0, 16)}…`);
-    return res.status(409).json({ error: 'Nullifier already used', error_code: 'REPLAY_DETECTED' });
-  }
-
-  // ── Proof expiry check ────────────────────────────────────
-  if (valid_until && valid_until < Math.floor(Date.now() / 1000)) {
-    return res.status(410).json({ error: 'Proof expired', error_code: 'PROOF_EXPIRED' });
-  }
-
-  // ── Session lookup (optional — mobile may not have sessionId) ─
-  let session = null;
-  if (session_id) {
-    session = sessions.get(session_id);
-    if (session) {
-      if (session.status === STATE.COMPLETED) {
-        return res.status(409).json({ error: 'Session already completed', error_code: 'DUPLICATE_PROOF' });
-      }
-      // Give 30 extra seconds for proof POST to arrive after scan
-      const graceMs = 30 * 1000;
-      if (session.status === STATE.EXPIRED ||
-          Date.now() > session.expiresAt + graceMs) {
-        return res.status(410).json({ error: 'Session expired', error_code: 'SESSION_EXPIRED' });
-      }
-      // Validate challenge matches session
-      if (session.challenge !== challenge) {
-        log('warn', `Challenge mismatch for session ${session_id}`);
-        return res.status(400).json({ error: 'Challenge mismatch', error_code: 'CHALLENGE_MISMATCH' });
-      }
-    }
-  }
-
-  // ── Accept proof ──────────────────────────────────────────
-  usedNullifiers.add(nullifier);  // [FIX 6] register nullifier globally
-
-  if (session) {
-    session.status      = STATE.COMPLETED;
-    session.proof       = compressed_proof;
-    session.nullifier   = nullifier;
-    session.claimResult = { type: claim_type, value: true };
-    session.trustLevel  = finalTrust;   // MAXIMUM | BASIC
-    session.inputMode   = input_mode;   // NFC_PASSPORT | SIMULATION | DEVICE_BIOMETRIC
-    session.metadata    = {
-      version,
-      domain,
-      hw_binding,
-      valid_until,
-      timestamp,
-      input_mode,
-      trust_level  : finalTrust,
-      generation_time_ms: timestamp ? Date.now() - timestamp : null,
-    };
-    session.verifiedAt = Date.now();
-    sessions.set(session_id, session);
-  }
-
-  stats.totalProofs++;
-  recordProofTime(timestamp ? Date.now() - timestamp : null);
-
-  log('info', `✅ ZK proof verified`, `| claim=${claim_type} | domain=${domain} | nullifier=${nullifier.slice(0,16)}…`);
-
-  res.json({
-    success     : true,
-    verified    : true,
-    claim_type,
-    domain,
-    nullifier   : nullifier.slice(0, 16) + '…',
-    trust_level : finalTrust,   // MAXIMUM | BASIC
-    input_mode  : input_mode,   // what proof was used
-    is_maximum  : isMaximum,    // true only for real NFC passport
-    verified_at : Date.now(),
-    message     : isMaximum
-      ? 'Government-verified identity confirmed'
-      : 'Device-verified identity confirmed',
+  res.status(503).json({
+    success: false,
+    verified: false,
+    error: 'Cryptographic proof verification is not configured',
+    error_code: 'VERIFIER_UNAVAILABLE',
+    message: 'No identity claim is accepted until a server-side Plonky2 verifier is configured.',
   });
 });
 
 // ── UPLOAD PROOF (legacy) ─────────────────────────────────────
 app.post('/api/upload-proof', (req, res) => {
-  // [FIX] Accept both old field names and new ZKAuthPayload field names
-  const {
-    sessionId, session_id,
-    proof, proof_data, compressed_proof,
-    nullifier,
-    metadata,
-    claimResult,
-    claim_type,
-    domain,
-    valid_until,
-    hw_binding,
-    timestamp,
-  } = req.body;
-
-  const sid       = sessionId || session_id;
-  const proofData = proof || proof_data || compressed_proof;
-
-  if (!sid)       return res.status(400).json({ error: 'Missing session ID',  error_code: 'MISSING_SESSION_ID' });
-  if (!proofData) return res.status(400).json({ error: 'Missing proof data',  error_code: 'MISSING_PROOF' });
-
-  const session = sessions.get(sid);
-  if (!session)                           return res.status(404).json({ error: 'Session not found',      error_code: 'SESSION_NOT_FOUND' });
-  if (session.status === STATE.COMPLETED) return res.status(409).json({ error: 'Proof already submitted', error_code: 'DUPLICATE_PROOF' });
-  if (session.status === STATE.EXPIRED || Date.now() > session.expiresAt)
-    return res.status(410).json({ error: 'Session expired', error_code: 'SESSION_EXPIRED' });
-
-  // Nullifier replay check
-  if (nullifier && usedNullifiers.has(nullifier)) {
-    return res.status(409).json({ error: 'Nullifier already used', error_code: 'REPLAY_DETECTED' });
-  }
-  if (nullifier) usedNullifiers.add(nullifier);
-
-  session.status      = STATE.COMPLETED;
-  session.proof       = proofData;
-  session.nullifier   = nullifier   || null;
-  session.metadata    = metadata    || { domain, valid_until, hw_binding, timestamp };
-  session.claimResult = claimResult || (claim_type ? { type: claim_type, value: true } : null);
-  session.verifiedAt  = Date.now();
-  sessions.set(sid, session);
-
-  stats.totalProofs++;
-  recordProofTime(metadata?.generation_time_ms);
-
-  log('info', `Proof uploaded: ${sid}`, `| ${metadata?.generation_time_ms ?? 'N/A'}ms`);
-
-  res.json({
-    success    : true,
-    message    : 'Proof verified successfully',
-    session_id : sid,
-    verified_at: session.verifiedAt,
+  res.status(410).json({
+    success: false,
+    verified: false,
+    error: 'Legacy proof acceptance is disabled',
+    error_code: 'LEGACY_ENDPOINT_DISABLED',
+    message: 'This endpoint cannot authenticate proof submissions.',
   });
 });
 

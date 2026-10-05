@@ -488,7 +488,10 @@ class AuthActivity : AppCompatActivity() {
                     ).show()
                     finish()
                 } else {
-                    showZkError("Could not connect to $domain.\nCheck your internet and try again.")
+                    showZkError(
+                        "The verification server did not accept this proof.\n" +
+                        "No identity claim was approved. Check the server status and try again later."
+                    )
                 }
             }
         } catch (e: Exception) {

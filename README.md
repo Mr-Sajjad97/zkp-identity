@@ -20,6 +20,8 @@ The project combines:
 * **Kotlin** for the Android application
 * **ZXing** for QR-code based data transfer
 
+The Android application and Rust crate are located under `Zkp-App/android`. The Node.js backend is a session relay; server-side Plonky2 verification is not implemented yet. See [Security Considerations](#-security-considerations) and `SECURITY.md`.
+
 The main objective is to demonstrate that privacy-preserving identity verification can be performed locally on mobile hardware.
 
 ---
@@ -86,30 +88,22 @@ The following measurements were obtained during internal testing of the project.
 
 ## 📂 Project Structure
 
-A typical project structure is:
+The Android and Rust projects are nested in `Zkp-App/android`:
 
 ```text
 zkp-identity/
 │
-├── app/
-│   └── src/
-│
-├── rust_core/
-│   ├── src/
-│   ├── Cargo.toml
-│   └── build_android.sh
-│
+├── Zkp-App/android/
+│   ├── app/
+│   ├── rust/
+│   ├── gradlew
+│   └── settings.gradle
+├── backend/
 ├── screenshots/
-│   ├── verified.jpg
-│   └── fake_proof.jpg
-│
-├── Cargo.toml
 ├── LICENSE
 ├── README.md
 └── ...
 ```
-
-The exact structure may vary depending on the project configuration.
 
 ---
 
@@ -133,12 +127,11 @@ The application rejects modified or invalid proof data during verification.
 
 Before building the project, install the following:
 
-1. **Android Studio**
-2. **Android SDK**
-3. **Android NDK**
-4. **Rust**
-5. **Cargo**
-6. **cargo-ndk**
+1. **JDK 17**
+2. **Android Studio**
+3. **Android SDK and NDK**
+4. **Rust nightly and Cargo**
+5. **cargo-ndk**
 
 Install `cargo-ndk` using:
 
@@ -159,39 +152,37 @@ cd zkp-identity
 
 ### 2. Build the Rust Native Library
 
-Go to the Rust project:
+From the repository root, run:
 
 ```bash
-cd rust_core
+cd Zkp-App/android/rust
+cargo ndk -t arm64-v8a -o ../app/src/main/jniLibs build --release
 ```
 
-Run the Android build script:
+### 3. Build the Android app
+
+The Gradle wrapper is located in `Zkp-App/android`, not the repository root:
 
 ```bash
-./build_android.sh
+cd Zkp-App/android
+./gradlew assembleDebug
 ```
 
-> On Windows, the build command may need to be executed through Git Bash, WSL, or an equivalent shell depending on the script configuration.
+On Windows, run `gradlew.bat assembleDebug` from `Zkp-App\android`. Alternatively, open `Zkp-App/android` directly in Android Studio and let Gradle sync.
 
-### 3. Open the Android Project
+The debug APK is written under `Zkp-App/android/app/build/outputs/apk/`. Connect an Android device with USB debugging enabled and select **Run ▶** in Android Studio to install it.
 
-Open the project in **Android Studio**.
+> If `./gradlew` reports “No such file or directory,” change into `Zkp-App/android` first. Running the command from the repository root will not work.
 
-Allow Android Studio to synchronize Gradle dependencies.
+### 4. Run the backend
 
-### 4. Connect an Android Device
+```bash
+cd backend
+npm install
+npm start
+```
 
-Enable **Developer Options** and **USB Debugging** on the Android device.
-
-Then select the device in Android Studio.
-
-### 5. Build and Run
-
-Click:
-
-**Run ▶**
-
-Android Studio will compile the application and install it on the connected device.
+Run the backend checks with `npm test`. The relay's proof-acceptance endpoints currently fail closed because a server-side Plonky2 verifier has not been implemented.
 
 ---
 

@@ -38,5 +38,14 @@ usage.txt
 .DS_Store
 Thumbs.db
 
+# ─── Node / JS dependencies ──────────────────────────────────
+node_modules/
+**/node_modules/
+
+# ─── Downloaded archives and local diagnostics ───────────────
+*.zip
+gradle_debug.log
+gradle_debug_*.log
+
 # ─── Logs ────────────────────────────────────────────────────
 *.log

@@ -15,7 +15,7 @@ Your passport contains a government-signed chip adhering to the ICAO 9303 standa
 2. **NFC Chip Read** *(BAC authentication)* ➔ 
 3. **SOD Verification** *(Government RSA/ECDSA signature)* ➔ 
 4. **Plonky2 ZK Proof** *(Generated on-device)* ➔ 
-5. **Server Verification** *(Receives proof + nullifier only)*.
+5. **Verifier integration** *(not implemented on the backend; the relay currently rejects proof submissions)*.
 
 ---
 
@@ -76,7 +76,7 @@ The Rust/Plonky2 circuit takes the DG1 data and SOD signature as private inputs.
    * *Path B:* Session expired → User provides biometric to unlock the vault → Proof is generated.
    * *Path C:* No identity found → Redirected to Registration Flow.
 4. **Execution:** Plonky2 proof is generated (~2-4 sec).
-5. **Verification:** App POSTs payload to `/zkauth/verify`. Website grants access.
+5. **Verification:** The app can POST a payload to `/zkauth/verify`, but the current backend returns `503 VERIFIER_UNAVAILABLE`; it does not grant access until a server-side verifier is implemented.
 
 ---
 
